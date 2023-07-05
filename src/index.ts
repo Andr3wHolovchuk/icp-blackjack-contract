@@ -273,6 +273,68 @@ export function giveCards(dealer_cards: nat32, user_cards: nat32): Result<string
     return Result.Ok(message)
 }
 
+// Allows the player to double their bet and receive one additional card if certain conditions are met
+$update;
+export function doubleDown(): Result<string, string> {
+    const user_cards: Deck[] = userStorage.values();
+
+    if (user_cards.length === 2 && dealerStorage.values().length === 1) {
+        const bet = game_bet.amount;
+        if (budget.amount >= bet) {
+            budget.amount -= bet;
+            game_bet.amount += bet;
+            return giveCards(0, 1);
+        } else {
+            return Result.Err("You have not enough budget");
+        }
+    } else {
+        return Result.Err("Double down is not allowed at this stage");
+    }
+}
+
+// Enables the player to split a pair of cards into two separate hands and play them individually.
+$update;
+export function splitPairs(): Result<string, string> {
+    const user_cards: Deck[] = userStorage.values();
+
+    if (user_cards.length === 2 && dealerStorage.values().length === 1 && user_cards[0].card === user_cards[1].card) {
+        const bet = game_bet.amount;
+        if (budget.amount >= bet) {
+            budget.amount -= bet;
+            game_bet.amount += bet;
+            const splitCard = user_cards.pop();
+            if (splitCard) {
+                userStorage.remove(splitCard.id);
+                const splitHand = generateCard();
+                userStorage.insert(splitHand.id, splitHand);
+                return giveCards(0, 1);
+            }
+        } else {
+            return Result.Err("You have not enough budget");
+        }
+    } else {
+        return Result.Err("Splitting pairs is not allowed at this stage");
+    }
+}
+
+// Allows the player to take insurance if the dealer's face-up card is an Ace.
+$update;
+export function takeInsurance(): Result<string, string> {
+    const dealer_cards: Deck[] = dealerStorage.values();
+
+    if (dealer_cards.length === 1 && dealer_cards[0].card === "A") {
+        const bet = game_bet.amount / 2;
+        if (budget.amount >= bet) {
+            budget.amount -= bet;
+            return Result.Ok("Insurance taken");
+        } else {
+            return Result.Err("You have not enough budget");
+        }
+    } else {
+        return Result.Err("Insurance is not available at this stage");
+    }
+}
+
 // a workaround to make uuid package work with Azle
 globalThis.crypto = {
     getRandomValues: () => {
